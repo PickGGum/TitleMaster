@@ -59,6 +59,56 @@ io.on("connection", (socket) => {
   });
 });
 
+// 점수판 관리
+let scores = {}; // { socketId: { name: '승현', score: 0 } }
+
+// 투표 결과 처리
+function calculateResults(votes) {
+  // votes: { voterId: targetId, ... }
+
+  // 지목당한 횟수 집계
+  let count = {};
+  for (let voterId in votes) {
+    let targetId = votes[voterId];
+    if (!count[targetId]) count[targetId] = 0;
+    count[targetId]++;
+  }
+
+  // 가장 많이 지목된 사람 찾기
+  let maxVotes = Math.max(...Object.values(count));
+  let mvpCandidates = Object.keys(count).filter(id => count[id] === maxVotes);
+  let mvpId = mvpCandidates[0]; // 동점일 경우 첫 번째만 MVP (단순화)
+
+  // 점수 계산
+  let totalPlayers = Object.keys(scores).length;
+  for (let voterId in votes) {
+    let targetId = votes[voterId];
+
+    // 모든 사람이 같은 사람을 지목했을 경우
+    if (count[targetId] === totalPlayers - 1) {
+      scores[targetId].score += 3;
+    } else {
+      if (targetId === mvpId) {
+        scores[targetId].score += 2;
+        scores[voterId].score += 1;
+      }
+    }
+  }
+
+  // 점수 정렬
+  let scoreboard = Object.values(scores).sort((a, b) => b.score - a.score);
+
+  return {
+    mvp: scores[mvpId].name,
+    scoreboard: scoreboard.map((p, idx) => ({
+      rank: idx + 1,
+      name: p.name,
+      score: p.score
+    }))
+  };
+}
+
+
 server.listen(3000, () => {
   console.log("서버 실행 중: http://localhost:3000");
 });
