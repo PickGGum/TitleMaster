@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>칭호 게임 - 플레이</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    #title {
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin: 20px 0;
+      min-height: 50px;
+    }
+    #playerChoices button {
+      display: block;
+      width: 100%;
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body class="light">
+  <div class="container">
+    <h1>라운드 진행</h1>
+    <div id="title"></div>
+
+    <div class="card">
+      <h2>누구에게 투표할까요?</h2>
+      <div id="playerChoices"></div>
+    </div>
+
+    <div id="result" class="card" style="display: none;">
+      <h2>결과</h2>
+      <p id="resultText"></p>
+    </div>
+
+    <button id="toggleMode">🌙 다크/라이트 전환</button>
+  </div>
+  <!-- 결과 모달 -->
+<div id="resultsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+    <div class="bg-white dark:bg-gray-900 text-black dark:text-white rounded-2xl p-6 w-[500px] shadow-xl">
+      
+      <h2 class="text-2xl font-bold text-center mb-4">라운드 결과</h2>
+  
+      <!-- MVP 영역 -->
+      <div id="mvpSection" class="text-center mb-6">
+        <h3 class="text-xl font-semibold">🎉 MVP 🎉</h3>
+        <p id="mvpName" class="text-2xl font-bold text-pink-500">플레이어 이름</p>
+        <p id="mvpReason" class="text-sm text-gray-500">가장 많이 지목됨!</p>
+      </div>
+  
+      <!-- 순위표 -->
+      <div>
+        <h3 class="text-lg font-semibold mb-2">순위표</h3>
+        <table class="w-full text-center border-collapse">
+          <thead>
+            <tr class="border-b">
+              <th class="p-2">순위</th>
+              <th class="p-2">닉네임</th>
+              <th class="p-2">점수</th>
+            </tr>
+          </thead>
+          <tbody id="scoreboard">
+            <!-- JS로 채워짐 -->
+          </tbody>
+        </table>
+      </div>
+  
+      <!-- 버튼 -->
+      <div class="text-center mt-6">
+        <button id="nextRoundBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg">
+          다음 라운드 →
+        </button>
+      </div>
+    </div>
+  </div>
+  
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="scripts/socket.js"></script>
+  <script>
+    const socket = io();
+    const roomCode = localStorage.getItem("roomCode");
+    const nickname = localStorage.getItem("nickname");
+
+    let hasVoted = false;
+
+    // 🔤 타이핑 애니메이션 함수
+    function typeWriter(text, elementId, speed = 70) {
+      const element = document.getElementById(elementId);
+      element.innerHTML = "";
+      let i = 0;
+      function typing() {
+        if (i < text.length) {
+          element.innerHTML += text.charAt(i);
+          i++;
+          setTimeout(typing, speed);
+        }
+      }
+      typing();
+    }
+
+    // 현재 칭호 표시
+    function showTitle(title) {
+      typeWriter(title, "title");
+    }
+
+    // 투표 UI 표시
+    socket.on("updatePlayers", (players) => {
+      const playerChoices = document.getElementById("playerChoices");
+      playerChoices.innerHTML = "";
+      for (const id in players) {
+        if (id === socket.id) continue; // 자기 자신 제외
+        const btn = document.createElement("button");
+        btn.textContent = players[id].name;
+        btn.addEventListener("click", () => {
+          if (hasVoted) return alert("이미 투표했습니다!");
+          hasVoted = true;
+          socket.emit("submitVotes", {
+            roomCode,
+            votes: { [socket.id]: id }
+          });
+          playerChoices.innerHTML = "<p>투표 완료 ✅</p>";
+        });
+        playerChoices.appendChild(btn);
+      }
+    });
+
+    // 게임 시작 시 칭호 받기
+    const currentTitle = localStorage.getItem("currentTitle");
+    if (currentTitle) {
+      showTitle(currentTitle);
+    }
+
+    // 투표 결과 표시
+    socket.on("voteResult", ({ chosenId, voters, scores }) => {
+      const resultDiv = document.getElementById("result");
+      const resultText = document.getElementById("resultText");
+
+      let chosenName = scores[chosenId]?.name || "???";
+      let voterNames = voters.map(v => scores[v].name).join(", ");
+
+      resultText.textContent =
+        `${chosenName} 님이 선택되었습니다! (투표한 사람: ${voterNames})`;
+      resultDiv.style.display = "block";
+    });
+
+    // 다음 라운드
+    socket.on("nextRound", ({ title }) => {
+      hasVoted = false;
+      document.getElementById("result").style.display = "none";
+      showTitle(title);
+    });
+
+    // 게임 종료
+    socket.on("gameEnded", ({ scores }) => {
+      const resultDiv = document.getElementById("result");
+      const resultText = document.getElementById("resultText");
+
+      let ranking = Object.values(scores)
+        .map(p => `${p.name}: ${p.score}점`)
+        .join("\n");
+
+      resultText.textContent = "게임 종료!\n\n" + ranking;
+      resultDiv.style.display = "block";
+    });
+
+    // 모드 전환
+    document.getElementById("toggleMode").addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      document.body.classList.toggle("light");
+    });
+  </script>
+</body>
+</html>
