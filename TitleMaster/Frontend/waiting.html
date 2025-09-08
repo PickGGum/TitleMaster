@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>칭호 게임 - 대기실</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="light">
+  <div class="container">
+    <h1>대기실</h1>
+    <p>방 코드: <span id="roomCode"></span></p>
+
+    <div class="card">
+      <h2>플레이어 목록</h2>
+      <ul id="playerList"></ul>
+    </div>
+
+    <div id="hostControls" class="card" style="display: none;">
+      <h2>게임 설정</h2>
+      <label for="rounds">라운드 수:</label>
+      <input type="number" id="rounds" value="5" min="1" max="20" />
+      <button id="startGameBtn">게임 시작</button>
+    </div>
+
+    <button id="toggleMode">🌙 다크/라이트 전환</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="scripts/socket.js"></script>
+  <script>
+    const socket = io();
+    const roomCode = localStorage.getItem("roomCode");
+    const nickname = localStorage.getItem("nickname");
+    const isHost = localStorage.getItem("isHost") === "true";
+
+    document.getElementById("roomCode").textContent = roomCode;
+
+    // 호스트 전용 컨트롤 표시
+    if (isHost) {
+      document.getElementById("hostControls").style.display = "block";
+    }
+
+    // 플레이어 목록 업데이트
+    socket.on("updatePlayers", (players) => {
+      const list = document.getElementById("playerList");
+      list.innerHTML = "";
+      for (const id in players) {
+        const li = document.createElement("li");
+        li.textContent = players[id].name + (id === socket.id ? " (나)" : "");
+        list.appendChild(li);
+      }
+    });
+
+    // 호스트가 게임 시작
+    document.getElementById("startGameBtn")?.addEventListener("click", () => {
+      const rounds = parseInt(document.getElementById("rounds").value, 10);
+
+      // TODO: 칭호 리스트는 나중에 DB나 파일에서 불러오도록 수정 가능
+      const titles = [
+        "가장 똑똑한 사람",
+        "가장 연애를 늦게 할 것 같은 사람",
+        "가장 게임을 오래 할 것 같은 사람",
+        "가장 잠을 많이 잘 것 같은 사람",
+        "가장 여행을 자주 다닐 것 같은 사람"
+      ];
+
+      socket.emit("startGame", { roomCode, maxRounds: rounds, titles });
+    });
+
+    // 게임 시작 시 게임 화면으로 이동
+    socket.on("gameStarted", ({ title }) => {
+      localStorage.setItem("currentTitle", title);
+      window.location.href = "game.html";
+    });
+
+    // 모드 전환
+    document.getElementById("toggleMode").addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      document.body.classList.toggle("light");
+    });
+  </script>
+</body>
+</html>
